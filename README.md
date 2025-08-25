@@ -173,6 +173,7 @@ make run-internet
 ├── ChatCLI.java             # Interface de linha de comando
 ├── Makefile                 # Script de build e execução
 ├── demo.sh                  # Script de demonstração
+├── test_chat.sh             # Script de teste automatizado
 ├── EXEMPLO_INTERNET.md      # Exemplos práticos de uso via internet
 └── README.md                # Este arquivo
 ```
@@ -216,6 +217,10 @@ make run-internet
 - **Problema**: Criar interface intuitiva para todas as funcionalidades
 - **Solução**: Comandos claros e sistema de ajuda integrado
 
+### 5. Tratamento de Erros de Conexão
+- **Problema**: Conexões sendo resetadas abruptamente ("Connection reset")
+- **Solução**: Implementação de timeouts, validação de sockets e tratamento específico de exceções de rede
+
 ## Melhorias Futuras
 
 1. **Criptografia**: Implementar criptografia end-to-end para mensagens
@@ -230,12 +235,21 @@ make run-internet
 ### Compilar
 ```bash
 make compile
+# ou
+javac -encoding UTF-8 *.java
 ```
 
 ### Executar
 ```bash
 make run
 make run-internet
+# ou diretamente
+java ChatCLI <nome> <porta> [ip]
+```
+
+### Teste Automatizado
+```bash
+./test_chat.sh
 ```
 
 ### Criar JAR
@@ -256,6 +270,25 @@ Para dúvidas ou problemas:
 2. Confirme que as portas não estão sendo usadas por outros serviços
 3. Verifique se o firewall não está bloqueando as conexões
 4. Use o comando `help` para ver todos os comandos disponíveis
+
+### Solução de Problemas Comuns
+
+#### Erro "Connection reset"
+Este erro ocorre quando uma conexão é interrompida abruptamente. As melhorias implementadas incluem:
+- Timeouts configuráveis para evitar travamentos
+- Tratamento específico de exceções de rede
+- Validação de sockets antes do processamento
+- Processamento assíncrono de conexões
+
+#### Peer não é descoberto
+- Verifique se ambos os peers estão na mesma rede
+- Confirme que as portas de descoberta (8888) não estão bloqueadas
+- Use o comando `discover` para verificar peers disponíveis
+
+#### Falha na conexão
+- Verifique se o peer de destino está rodando
+- Confirme o IP e porta corretos
+- Use `connect <host> <port> <nome>` para conectar manualmente
 
 ## Licença
 

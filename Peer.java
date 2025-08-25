@@ -109,21 +109,43 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
      * Inicia o servidor para aceitar conexões
      */
     private void startServer() throws IOException {
-        serverSocket = new ServerSocket(port);
-        
-        // Thread para aceitar conexões
-        new Thread(() -> {
-            while (running && !serverSocket.isClosed()) {
-                try {
-                    Socket clientSocket = serverSocket.accept();
-                    handleIncomingConnection(clientSocket);
-                } catch (IOException e) {
-                    if (running) {
-                        System.err.println("Erro ao aceitar conexão: " + e.getMessage());
+        try {
+            serverSocket = new ServerSocket(port);
+            serverSocket.setReuseAddress(true); // Permite reutilizar a porta
+            
+            // Thread para aceitar conexões
+            new Thread(() -> {
+                while (running && !serverSocket.isClosed()) {
+                    try {
+                        Socket clientSocket = serverSocket.accept();
+                        
+                        // Configura timeout para evitar travamentos
+                        clientSocket.setSoTimeout(30000); // 30 segundos de timeout
+                        
+                        // Processa a conexão em uma thread separada para não bloquear
+                        connectionExecutor.submit(() -> handleIncomingConnection(clientSocket));
+                        
+                    } catch (java.net.SocketException e) {
+                        if (running && !serverSocket.isClosed()) {
+                            System.err.println("Erro de socket ao aceitar conexão: " + e.getMessage());
+                        }
+                    } catch (IOException e) {
+                        if (running && !serverSocket.isClosed()) {
+                            System.err.println("Erro ao aceitar conexão: " + e.getMessage());
+                        }
+                    } catch (Exception e) {
+                        if (running && !serverSocket.isClosed()) {
+                            System.err.println("Erro inesperado ao aceitar conexão: " + e.getMessage());
+                        }
                     }
                 }
-            }
-        }).start();
+            }).start();
+            
+        } catch (java.net.BindException e) {
+            throw new IOException("Porta " + port + " já está em uso. Escolha outra porta.");
+        } catch (IOException e) {
+            throw new IOException("Erro ao iniciar servidor na porta " + port + ": " + e.getMessage());
+        }
     }
     
     /**
@@ -142,9 +164,19 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
      * Trata conexão recebida
      */
     private void handleIncomingConnection(Socket socket) {
+        ObjectInputStream in = null;
         try {
+            // Verifica se o socket ainda está válido
+            if (socket.isClosed() || !socket.isConnected()) {
+                System.out.println("Socket inválido recebido, ignorando...");
+                return;
+            }
+            
+            // Configura timeout para evitar travamentos
+            socket.setSoTimeout(5000); // 5 segundos de timeout
+            
             // Primeiro recebe o nome do peer
-            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+            in = new ObjectInputStream(socket.getInputStream());
             Object obj = in.readObject();
             
             if (obj instanceof Message) {
@@ -152,6 +184,13 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
                 if (message.getType() == Message.MessageType.CONNECT) {
                     String peerName = message.getSenderName();
                     String peerAddress = socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
+                    
+                    // Verifica se já está conectado a este peer
+                    if (connections.containsKey(peerAddress)) {
+                        System.out.println("Conexão duplicada ignorada de " + peerName + " (" + peerAddress + ")");
+                        socket.close();
+                        return;
+                    }
                     
                     // Cria conexão
                     PeerConnection connection = new PeerConnection(socket, peerName, this, this);
@@ -175,12 +214,31 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
                     addSystemMessage(peerName + " conectou-se ao chat");
                     
                     System.out.println("Nova conexão estabelecida com " + peerName + " (" + peerAddress + ")");
+                } else {
+                    System.out.println("Tipo de mensagem inesperado recebido: " + message.getType());
                 }
+            } else {
+                System.out.println("Objeto inesperado recebido: " + obj.getClass().getSimpleName());
             }
+        } catch (java.net.SocketTimeoutException e) {
+            System.out.println("Timeout ao processar conexão recebida");
+        } catch (java.net.SocketException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Connection reset")) {
+                System.out.println("Conexão resetada pelo peer remoto");
+            } else {
+                System.err.println("Erro de socket ao processar conexão: " + e.getMessage());
+            }
+        } catch (java.io.EOFException e) {
+            System.out.println("Conexão fechada pelo peer remoto");
         } catch (Exception e) {
             System.err.println("Erro ao processar conexão recebida: " + e.getMessage());
+            if (e.getCause() != null) {
+                System.err.println("Causa: " + e.getCause().getMessage());
+            }
+        } finally {
             try {
-                socket.close();
+                if (in != null) in.close();
+                if (socket != null && !socket.isClosed()) socket.close();
             } catch (IOException ioException) {
                 // Ignora erro ao fechar
             }
@@ -200,8 +258,26 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
                 return false;
             }
             
+            // Valida parâmetros
+            if (host == null || host.trim().isEmpty()) {
+                System.err.println("Host inválido para conectar a " + peerName);
+                return false;
+            }
+            
+            if (port <= 0 || port > 65535) {
+                System.err.println("Porta inválida para conectar a " + peerName + ": " + port);
+                return false;
+            }
+            
             // Cria conexão
             PeerConnection connection = new PeerConnection(host, port, peerName, this, this);
+            
+            // Testa se a conexão foi estabelecida com sucesso
+            if (!connection.isConnected()) {
+                System.err.println("Falha ao estabelecer conexão com " + peerName + " (" + peerAddress + ")");
+                return false;
+            }
+            
             connections.put(peerAddress, connection);
             connectionNames.put(peerAddress, peerName);
             
@@ -224,8 +300,23 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
             System.out.println("Conectado a " + peerName + " (" + peerAddress + ")");
             return true;
             
+        } catch (java.net.ConnectException e) {
+            System.err.println("Não foi possível conectar a " + peerName + " (" + host + ":" + port + ") - Peer não está disponível");
+            return false;
+        } catch (java.net.SocketTimeoutException e) {
+            System.err.println("Timeout ao conectar a " + peerName + " (" + host + ":" + port + ")");
+            return false;
+        } catch (java.net.UnknownHostException e) {
+            System.err.println("Host desconhecido: " + host + " para conectar a " + peerName);
+            return false;
         } catch (IOException e) {
-            System.err.println("Erro ao conectar a " + peerName + ": " + e.getMessage());
+            System.err.println("Erro de I/O ao conectar a " + peerName + ": " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            System.err.println("Erro inesperado ao conectar a " + peerName + ": " + e.getMessage());
+            if (e.getCause() != null) {
+                System.err.println("Causa: " + e.getCause().getMessage());
+            }
             return false;
         }
     }
