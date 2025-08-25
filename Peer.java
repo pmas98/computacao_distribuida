@@ -167,13 +167,15 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
         ObjectInputStream in = null;
         try {
             // Verifica se o socket ainda está válido
-            if (socket.isClosed() || !socket.isConnected()) {
+            if (socket == null || socket.isClosed() || !socket.isConnected()) {
                 System.out.println("Socket inválido recebido, ignorando...");
                 return;
             }
             
+            System.out.println("Processando nova conexão de " + socket.getInetAddress().getHostAddress() + ":" + socket.getPort());
+            
             // Configura timeout para evitar travamentos
-            socket.setSoTimeout(5000); // 5 segundos de timeout
+            socket.setSoTimeout(30000); // 30 segundos de timeout
             
             // Primeiro recebe o nome do peer
             in = new ObjectInputStream(socket.getInputStream());
@@ -185,6 +187,8 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
                     String peerName = message.getSenderName();
                     String peerAddress = socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
                     
+                    System.out.println("Mensagem CONNECT recebida de " + peerName + " (" + peerAddress + ")");
+                    
                     // Verifica se já está conectado a este peer
                     if (connections.containsKey(peerAddress)) {
                         System.out.println("Conexão duplicada ignorada de " + peerName + " (" + peerAddress + ")");
@@ -194,6 +198,13 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
                     
                     // Cria conexão
                     PeerConnection connection = new PeerConnection(socket, peerName, this, this);
+                    
+                    // Verifica se a conexão foi criada com sucesso
+                    if (!connection.isConnected()) {
+                        System.out.println("Falha ao criar conexão com " + peerName + ", ignorando...");
+                        return;
+                    }
+                    
                     connections.put(peerAddress, connection);
                     connectionNames.put(peerAddress, peerName);
                     
@@ -221,7 +232,8 @@ public class Peer implements PeerConnection.MessageListener, PeerConnection.Conn
                 System.out.println("Objeto inesperado recebido: " + obj.getClass().getSimpleName());
             }
         } catch (java.net.SocketTimeoutException e) {
-            System.out.println("Timeout ao processar conexão recebida");
+            System.out.println("Timeout ao processar conexão recebida de " + 
+                             (socket != null ? socket.getInetAddress().getHostAddress() + ":" + socket.getPort() : "desconhecido"));
         } catch (java.net.SocketException e) {
             if (e.getMessage() != null && e.getMessage().contains("Connection reset")) {
                 System.out.println("Conexão resetada pelo peer remoto");

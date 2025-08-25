@@ -174,6 +174,7 @@ make run-internet
 ├── Makefile                 # Script de build e execução
 ├── demo.sh                  # Script de demonstração
 ├── test_chat.sh             # Script de teste automatizado
+├── debug_connection.sh      # Script de debug para conexões
 ├── EXEMPLO_INTERNET.md      # Exemplos práticos de uso via internet
 └── README.md                # Este arquivo
 ```
@@ -252,6 +253,11 @@ java ChatCLI <nome> <porta> [ip]
 ./test_chat.sh
 ```
 
+### Debug de Conexões
+```bash
+./debug_connection.sh
+```
+
 ### Criar JAR
 ```bash
 make jar
@@ -279,6 +285,14 @@ Este erro ocorre quando uma conexão é interrompida abruptamente. As melhorias 
 - Tratamento específico de exceções de rede
 - Validação de sockets antes do processamento
 - Processamento assíncrono de conexões
+
+#### Erro "Erro ao configurar streams: null"
+Este erro foi corrigido com:
+- Validação de parâmetros antes da criação de conexões
+- Verificação de sockets válidos
+- Timeouts de conexão (10s) e leitura (30s)
+- Mensagens de erro mais informativas
+- Tratamento robusto de falhas de I/O
 
 #### Peer não é descoberto
 - Verifique se ambos os peers estão na mesma rede
