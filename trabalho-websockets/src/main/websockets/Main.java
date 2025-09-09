@@ -2,13 +2,18 @@ package websockets;
 
 import java.net.*;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Scanner;
 
 public class Main {
     private static Peer peer;
+    private static String username;
     private static final Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
+        System.out.print("Digite seu nome de usuário: ");
+        username = scanner.nextLine().trim();
+
         System.out.print("Digite a porta para este peer: ");
         
         int port;
@@ -19,7 +24,7 @@ public class Main {
             return;
         }
 
-        peer = new Peer(port);
+        peer = new Peer(port, username);
         if (!peer.start()) {
             System.out.println("Erro ao iniciar o peer na porta " + port);
             return;
@@ -57,10 +62,15 @@ public class Main {
                 showHelp();
                 break;
             case "-connect":
-                if (parts.length != 3) {
-                    System.out.println("Uso: -connect [IP_HOST] [PORT]");
-                } else {
+                if (parts.length == 2) {
+                    // Connect by username
+                    peer.connectToPeer(parts[1], 0); // Port 0 means any available port
+                    System.out.println("Tentando conectar ao peer " + parts[1] + "...");
+                } else if (parts.length == 3) {
+                    // Connect by IP and port
                     connectToPeer(parts[1], parts[2]);
+                } else {
+                    System.out.println("Uso: -connect [IP_HOST] [PORT] ou -connect [USERNAME]");
                 }
                 break;
             case "-list":
@@ -77,6 +87,12 @@ public class Main {
             case "-ip":
                 showHostIP();
                 break;
+            case "-history":
+                peer.printMessageHistory();
+                break;
+            case "-discover":
+                listDiscoveredPeers();
+                break;
             default:
                 System.out.println("Comando inválido. Digite -help para ver os comandos disponíveis");
         }
@@ -86,8 +102,11 @@ public class Main {
         System.out.println("\n=== Comandos Disponíveis ===");
         System.out.println("-help                     - Mostra esta ajuda");
         System.out.println("-connect [IP_HOST] [PORT] - Conecta a outro peer");
+        System.out.println("-connect [USERNAME]       - Conecta a um peer descoberto pelo nome de usuário");
         System.out.println("-list                     - Lista conexões ativas");
         System.out.println("-send [mensagem]          - Envia mensagem para todos os peers conectados");
+        System.out.println("-history                  - Mostra o histórico de mensagens");
+        System.out.println("-discover                 - Lista os peers descobertos na rede");
         System.out.println("-ip                       - Mostra o IP deste host");
         System.out.println("exit/quit                 - Encerra o programa");
         System.out.println("============================\n");
@@ -103,6 +122,19 @@ public class Main {
             }
         } catch (NumberFormatException e) {
             System.out.println("Porta inválida: " + portStr);
+        }
+    }
+
+    private static void listDiscoveredPeers() {
+        Map<String, String> discoveredPeers = peer.getDiscoveredPeers();
+        if (discoveredPeers.isEmpty()) {
+            System.out.println("Nenhum peer descoberto na rede.");
+        } else {
+            System.out.println("\n=== Peers Descobertos ===");
+            for (Map.Entry<String, String> entry : discoveredPeers.entrySet()) {
+                System.out.println(entry.getKey() + " -> " + entry.getValue());
+            }
+            System.out.println("=========================\n");
         }
     }
 
