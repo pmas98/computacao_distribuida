@@ -31,13 +31,11 @@ public class Peer {
             
             threadPool.submit(this::acceptConnections);
             
-            // Inicia a descoberta de peers
             try {
                 peerDiscovery = new PeerDiscovery(this);
                 threadPool.submit(peerDiscovery);
             } catch (IOException e) {
                 System.err.println("Erro ao iniciar a descoberta de peers: " + e.getMessage());
-                // Continua mesmo se a descoberta falhar
             }
             
             return true;
@@ -67,10 +65,9 @@ public class Peer {
     }
 
     public boolean connectToPeer(String host, int port) {
-        // Se a porta for 0, tenta encontrar o peer pelo nome de usuário
         if (port == 0 && peerDiscovery != null) {
             Map<String, String> discoveredPeers = peerDiscovery.getDiscoveredPeers();
-            String address = discoveredPeers.get(host); // 'host' é o nome de usuário aqui
+            String address = discoveredPeers.get(host);
             if (address != null) {
                 String[] parts = address.split(":");
                 host = parts[0];
@@ -130,7 +127,6 @@ public class Peer {
             messageHistory.add("Usuário " + message.getSenderUsername() + " desconectado.");
             System.out.println("\nUsuário " + message.getSenderUsername() + " desconectado.");
 
-            // Encerra a conexão com o usuário que enviou a mensagem de desconexão
             PeerConnection connectionToRemove = null;
             synchronized (connections) {
                 for (PeerConnection connection : connections) {
@@ -153,7 +149,6 @@ public class Peer {
     
         synchronized (connections) {
             for (PeerConnection connection : connections) {
-                // Não envia de volta para o remetente original
                 if (!connection.getRemoteUsername().equals(message.getSenderUsername())) {
                     connection.sendMessage(message);
                 }

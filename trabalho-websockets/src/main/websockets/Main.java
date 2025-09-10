@@ -63,11 +63,9 @@ public class Main {
                 break;
             case "-connect":
                 if (parts.length == 2) {
-                    // Connect by username
-                    peer.connectToPeer(parts[1], 0); // Port 0 means any available port
+                    peer.connectToPeer(parts[1], 0);
                     System.out.println("Tentando conectar ao peer " + parts[1] + "...");
                 } else if (parts.length == 3) {
-                    // Connect by IP and port
                     connectToPeer(parts[1], parts[2]);
                 } else {
                     System.out.println("Uso: -connect [IP_HOST] [PORT] ou -connect [USERNAME]");

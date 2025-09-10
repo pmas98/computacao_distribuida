@@ -14,7 +14,7 @@ public class PeerDiscovery implements Runnable {
 
     private static final String MULTICAST_ADDRESS = "230.0.0.0";
     private static final int DISCOVERY_PORT = 8888;
-    private static final int BROADCAST_INTERVAL = 5; // seconds
+    private static final int BROADCAST_INTERVAL = 5; 
 
     private final Peer peer;
     private final MulticastSocket socket;
