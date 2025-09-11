@@ -11,17 +11,28 @@ public class Main {
     private static final Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
-        System.out.print("Digite seu nome de usuário: ");
-        username = scanner.nextLine().trim();
-
-        System.out.print("Digite a porta para este peer: ");
-        
         int port;
-        try {
-            port = Integer.parseInt(scanner.nextLine());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return;
+        
+        String[] userInfo = Peer.readUserInfoFromHistory();
+        
+        if (userInfo != null) {
+            username = userInfo[0];
+            port = Integer.parseInt(userInfo[1]);
+            System.out.println("Usando informações do histórico existente:");
+            System.out.println("Usuário: " + username);
+            System.out.println("Porta: " + port);
+        } else {
+            System.out.print("Digite seu nome de usuário: ");
+            username = scanner.nextLine().trim();
+
+            System.out.print("Digite a porta para este peer: ");
+            
+            try {
+                port = Integer.parseInt(scanner.nextLine());
+            } catch (Exception e) {
+                e.printStackTrace();
+                return;
+            }
         }
 
         peer = new Peer(port, username);
@@ -31,6 +42,7 @@ public class Main {
         }
 
         System.out.println("Peer iniciado na porta " + port);
+        System.out.println("Chat será automaticamente salvo em: " + peer.getChatFileName());
         System.out.println("Digite -help para ver os comandos disponíveis");
 
         while (true) {
@@ -91,6 +103,15 @@ public class Main {
             case "-discover":
                 listDiscoveredPeers();
                 break;
+            case "-files":
+                peer.listChatHistoryFiles();
+                break;
+            case "-load":
+                peer.loadChatHistory("history.txt");
+                break;
+            case "-current":
+                System.out.println("Arquivo de chat atual: " + peer.getChatFileName());
+                break;
             default:
                 System.out.println("Comando inválido. Digite -help para ver os comandos disponíveis");
         }
@@ -106,6 +127,9 @@ public class Main {
         System.out.println("-history                  - Mostra o histórico de mensagens");
         System.out.println("-discover                 - Lista os peers descobertos na rede");
         System.out.println("-ip                       - Mostra o IP deste host");
+        System.out.println("-files                    - Mostra informações do arquivo de histórico");
+        System.out.println("-load                     - Carrega e exibe o histórico completo");
+        System.out.println("-current                  - Mostra o arquivo de chat atual");
         System.out.println("exit/quit                 - Encerra o programa");
         System.out.println("============================\n");
     }

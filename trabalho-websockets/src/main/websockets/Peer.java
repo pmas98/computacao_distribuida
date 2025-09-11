@@ -1,6 +1,9 @@
 package websockets;
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -14,6 +17,7 @@ public class Peer {
     private final List<String> messageHistory;
     private final Set<UUID> processedMessages;
     private PeerDiscovery peerDiscovery;
+    private final String chatFileName;
 
     public Peer(int port, String username) {
         this.port = port;
@@ -22,6 +26,9 @@ public class Peer {
         this.threadPool = Executors.newCachedThreadPool();
         this.messageHistory = new CopyOnWriteArrayList<>();
         this.processedMessages = Collections.synchronizedSet(new HashSet<>());
+        
+        // Initialize chat history file
+        this.chatFileName = initializeChatFile();
     }
 
     public boolean start() {
@@ -107,7 +114,10 @@ public class Peer {
         processedMessages.add(message.getId()); 
 
         System.out.println("Enviando: " + message);
-        messageHistory.add("Eu: " + content);
+        String messageText = "Eu: " + content;
+        messageHistory.add(messageText);
+        
+        appendToChatFile(messageText);
         
         synchronized (connections) {
             for (PeerConnection connection : connections) {
@@ -124,8 +134,11 @@ public class Peer {
         processedMessages.add(message.getId());
 
         if (message.getType() == Message.MessageType.DISCONNECT) {
-            messageHistory.add("Usuário " + message.getSenderUsername() + " desconectado.");
-            System.out.println("\nUsuário " + message.getSenderUsername() + " desconectado.");
+            String disconnectMsg = "Usuário " + message.getSenderUsername() + " desconectado.";
+            messageHistory.add(disconnectMsg);
+            System.out.println("\n" + disconnectMsg);
+            
+            appendToChatFile(disconnectMsg);
 
             PeerConnection connectionToRemove = null;
             synchronized (connections) {
@@ -141,8 +154,11 @@ public class Peer {
                 }
             }
         } else {
-            messageHistory.add(message.toString());
-            System.out.println("\n" + message);
+            String messageText = message.toString();
+            messageHistory.add(messageText);
+            System.out.println("\n" + messageText);
+            
+            appendToChatFile(messageText);
         }
 
         System.out.print("> ");
@@ -181,6 +197,92 @@ public class Peer {
         return username;
     }
 
+    public String getChatFileName() {
+        return chatFileName;
+    }
+
+    public static String[] readUserInfoFromHistory() {
+        try {
+            Path historyFile = Paths.get("history.txt");
+            if (!Files.exists(historyFile)) {
+                return null;
+            }
+
+            String firstLine = Files.lines(historyFile).findFirst().orElse("");
+            if (firstLine.startsWith("=== Chat History for ")) {
+                // Parse: === Chat History for username (Port: port) ===
+                String content = firstLine.substring(21); // Remove "=== Chat History for "
+                content = content.substring(0, content.length() - 4); // Remove " ==="
+                
+                if (content.contains(" (Port: ")) {
+                    String username = content.substring(0, content.indexOf(" (Port: "));
+                    String portStr = content.substring(content.indexOf(" (Port: ") + 8);
+                    portStr = portStr.substring(0, portStr.length() - 1); // Remove ")"
+                    
+                    return new String[]{username, portStr};
+                }
+            }
+            
+        } catch (IOException e) {
+            System.err.println("Erro ao ler informações do histórico: " + e.getMessage());
+        }
+        
+        return null;
+    }
+
+    private String initializeChatFile() {
+        try {
+            String fileName = "history.txt";
+            
+            // Check if history.txt exists
+            if (Files.exists(Paths.get(fileName))) {
+                System.out.println("Continuando chat existente: " + fileName);
+                loadExistingMessages(fileName);
+            } else {
+                // Create new history file
+                String header = "=== Chat History for " + username + " (Port: " + port + ") ===\n";
+                header += "Started: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "\n";
+                header += "===============================================\n\n";
+                Files.write(Paths.get(fileName), header.getBytes());
+                System.out.println("Novo chat iniciado: " + fileName);
+            }
+            
+            return fileName;
+            
+        } catch (IOException e) {
+            System.err.println("Erro ao inicializar arquivo de chat: " + e.getMessage());
+            return "history.txt";
+        }
+    }
+
+    private void loadExistingMessages(String fileName) {
+        try {
+            Path filePath = Paths.get(fileName);
+            if (!Files.exists(filePath)) {
+                return;
+            }
+
+            Files.lines(filePath).forEach(line -> {
+                // Skip header lines and empty lines
+                if (!line.startsWith("===") && !line.startsWith("Started:") && 
+                    !line.startsWith("===============================================") && 
+                    !line.trim().isEmpty()) {
+                    
+                    // Extract message from timestamped line
+                    if (line.startsWith("[") && line.contains("] ")) {
+                        String message = line.substring(line.indexOf("] ") + 2);
+                        messageHistory.add(message);
+                    }
+                }
+            });
+            
+            System.out.println("Carregadas " + messageHistory.size() + " mensagens do histórico existente.");
+            
+        } catch (IOException e) {
+            System.err.println("Erro ao carregar mensagens existentes: " + e.getMessage());
+        }
+    }
+
     public void printMessageHistory() {
         System.out.println("\n=== Histórico de Mensagens ===");
         if (messageHistory.isEmpty()) {
@@ -191,6 +293,54 @@ public class Peer {
             }
         }
         System.out.println("============================\n");
+    }
+
+    private void appendToChatFile(String message) {
+        try {
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            String logEntry = "[" + timestamp + "] " + message + "\n";
+            Files.write(Paths.get(chatFileName), logEntry.getBytes(), StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            System.err.println("Erro ao salvar mensagem no arquivo: " + e.getMessage());
+        }
+    }
+
+
+    public void loadChatHistory(String filename) {
+        try {
+            Path filePath = Paths.get(filename);
+            if (!Files.exists(filePath)) {
+                System.out.println("Arquivo não encontrado: " + filename);
+                return;
+            }
+
+            System.out.println("\n=== Carregando Histórico de: " + filename + " ===");
+            Files.lines(filePath).forEach(System.out::println);
+            System.out.println("========================================\n");
+
+        } catch (IOException e) {
+            System.err.println("Erro ao carregar histórico: " + e.getMessage());
+        }
+    }
+
+    public void listChatHistoryFiles() {
+        try {
+            Path historyFile = Paths.get("history.txt");
+            if (!Files.exists(historyFile)) {
+                System.out.println("Arquivo de histórico não existe.");
+                return;
+            }
+
+            System.out.println("\n=== Arquivo de Histórico ===");
+            String filename = historyFile.getFileName().toString();
+            long size = Files.size(historyFile);
+            String modified = Files.getLastModifiedTime(historyFile).toString().substring(0, 19);
+            System.out.println(filename + " (" + size + " bytes, modificado: " + modified + ")");
+            System.out.println("============================\n");
+
+        } catch (IOException e) {
+            System.err.println("Erro ao listar arquivo: " + e.getMessage());
+        }
     }
 
     public void stop() {
