@@ -14,12 +14,13 @@ Um sistema de chat distribuído Peer-to-Peer (P2P) desenvolvido em Java que perm
 
 ## Arquitetura
 
-O sistema é composto por quatro classes principais:
+O sistema é composto por cinco classes principais:
 
 - **`Main.java`** - Interface principal e processamento de comandos
 - **`Peer.java`** - Gerenciamento de conexões e comunicação
 - **`Message.java`** - Estrutura de dados para mensagens
 - **`PeerDiscovery.java`** - Descoberta automática de peers na rede
+- **`ChatHistory.java`** - Gerenciamento do histórico de mensagens e persistência
 
 ## Instalação e Execução
 
@@ -75,6 +76,24 @@ O sistema lembra suas configurações anteriores e as reutiliza automaticamente.
 - Todas as mensagens são salvas automaticamente em `history.txt`
 - Histórico é carregado automaticamente na inicialização
 - Timestamps são adicionados a cada mensagem
+- **`ChatHistory.java`** gerencia toda a persistência de forma organizada
+- Suporte a carregamento de histórico existente
+- Informações de usuário e porta são preservadas no arquivo
+
+## Melhorias na Organização do Código
+
+### Separação de Responsabilidades
+- **`ChatHistory.java`** foi criada para centralizar todas as operações relacionadas ao histórico
+- Melhor organização do código com responsabilidades bem definidas
+- Facilita manutenção e extensão das funcionalidades de histórico
+
+### Funcionalidades do ChatHistory
+- Inicialização automática de arquivos de histórico
+- Carregamento de mensagens existentes
+- Adição de novas mensagens com timestamps
+- Exibição do histórico de mensagens
+- Informações sobre arquivos de histórico
+- Leitura de informações de usuário para restauração de sessão
 
 ## Tecnologias Utilizadas
 

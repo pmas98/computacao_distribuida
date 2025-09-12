@@ -1,9 +1,6 @@
 package websockets;
 import java.io.*;
 import java.net.*;
-import java.nio.file.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -14,21 +11,19 @@ public class Peer {
     private boolean running = false;
     private final Set<PeerConnection> connections;
     private final ExecutorService threadPool;
-    private final List<String> messageHistory;
     private final Set<UUID> processedMessages;
     private PeerDiscovery peerDiscovery;
-    private final String chatFileName;
+    private final ChatHistory chatHistory;
 
     public Peer(int port, String username) {
         this.port = port;
         this.username = username;
         this.connections = Collections.synchronizedSet(new HashSet<>());
         this.threadPool = Executors.newCachedThreadPool();
-        this.messageHistory = new CopyOnWriteArrayList<>();
         this.processedMessages = Collections.synchronizedSet(new HashSet<>());
         
-        // Initialize chat history file
-        this.chatFileName = initializeChatFile();
+        // Initialize chat history
+        this.chatHistory = new ChatHistory(username, port);
     }
 
     public boolean start() {
@@ -115,9 +110,7 @@ public class Peer {
 
         System.out.println("Enviando: " + message);
         String messageText = "Eu: " + content;
-        messageHistory.add(messageText);
-        
-        appendToChatFile(messageText);
+        chatHistory.addMessage(messageText);
         
         synchronized (connections) {
             for (PeerConnection connection : connections) {
@@ -135,10 +128,8 @@ public class Peer {
 
         if (message.getType() == Message.MessageType.DISCONNECT) {
             String disconnectMsg = "Usuário " + message.getSenderUsername() + " desconectado.";
-            messageHistory.add(disconnectMsg);
+            chatHistory.addMessage(disconnectMsg);
             System.out.println("\n" + disconnectMsg);
-            
-            appendToChatFile(disconnectMsg);
 
             PeerConnection connectionToRemove = null;
             synchronized (connections) {
@@ -155,10 +146,8 @@ public class Peer {
             }
         } else {
             String messageText = message.toString();
-            messageHistory.add(messageText);
+            chatHistory.addMessage(messageText);
             System.out.println("\n" + messageText);
-            
-            appendToChatFile(messageText);
         }
 
         System.out.print("> ");
@@ -198,149 +187,23 @@ public class Peer {
     }
 
     public String getChatFileName() {
-        return chatFileName;
+        return chatHistory.getChatFileName();
     }
 
     public static String[] readUserInfoFromHistory() {
-        try {
-            Path historyFile = Paths.get("history.txt");
-            if (!Files.exists(historyFile)) {
-                return null;
-            }
-
-            String firstLine = Files.lines(historyFile).findFirst().orElse("");
-            if (firstLine.startsWith("=== Chat History for ")) {
-                // Parse: === Chat History for username (Port: port) ===
-                String content = firstLine.substring(21); // Remove "=== Chat History for "
-                content = content.substring(0, content.length() - 4); // Remove " ==="
-                
-                if (content.contains(" (Port: ")) {
-                    String username = content.substring(0, content.indexOf(" (Port: "));
-                    String portStr = content.substring(content.indexOf(" (Port: ") + 8);
-                    portStr = portStr.substring(0, portStr.length() - 1); // Remove ")"
-                    
-                    return new String[]{username, portStr};
-                }
-            }
-            
-        } catch (IOException e) {
-            System.err.println("Erro ao ler informações do histórico: " + e.getMessage());
-        }
-        
-        return null;
-    }
-
-    private String initializeChatFile() {
-        try {
-            String fileName = "history.txt";
-            
-            // Check if history.txt exists
-            if (Files.exists(Paths.get(fileName))) {
-                System.out.println("Continuando chat existente: " + fileName);
-                loadExistingMessages(fileName);
-            } else {
-                // Create new history file
-                String header = "=== Chat History for " + username + " (Port: " + port + ") ===\n";
-                header += "Started: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "\n";
-                header += "===============================================\n\n";
-                Files.write(Paths.get(fileName), header.getBytes());
-                System.out.println("Novo chat iniciado: " + fileName);
-            }
-            
-            return fileName;
-            
-        } catch (IOException e) {
-            System.err.println("Erro ao inicializar arquivo de chat: " + e.getMessage());
-            return "history.txt";
-        }
-    }
-
-    private void loadExistingMessages(String fileName) {
-        try {
-            Path filePath = Paths.get(fileName);
-            if (!Files.exists(filePath)) {
-                return;
-            }
-
-            Files.lines(filePath).forEach(line -> {
-                // Skip header lines and empty lines
-                if (!line.startsWith("===") && !line.startsWith("Started:") && 
-                    !line.startsWith("===============================================") && 
-                    !line.trim().isEmpty()) {
-                    
-                    // Extract message from timestamped line
-                    if (line.startsWith("[") && line.contains("] ")) {
-                        String message = line.substring(line.indexOf("] ") + 2);
-                        messageHistory.add(message);
-                    }
-                }
-            });
-            
-            System.out.println("Carregadas " + messageHistory.size() + " mensagens do histórico existente.");
-            
-        } catch (IOException e) {
-            System.err.println("Erro ao carregar mensagens existentes: " + e.getMessage());
-        }
+        return ChatHistory.readUserInfoFromHistory();
     }
 
     public void printMessageHistory() {
-        System.out.println("\n=== Histórico de Mensagens ===");
-        if (messageHistory.isEmpty()) {
-            System.out.println("Nenhuma mensagem no histórico.");
-        } else {
-            for (String msg : messageHistory) {
-                System.out.println(msg);
-            }
-        }
-        System.out.println("============================\n");
+        chatHistory.printMessageHistory();
     }
-
-    private void appendToChatFile(String message) {
-        try {
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-            String logEntry = "[" + timestamp + "] " + message + "\n";
-            Files.write(Paths.get(chatFileName), logEntry.getBytes(), StandardOpenOption.APPEND);
-        } catch (IOException e) {
-            System.err.println("Erro ao salvar mensagem no arquivo: " + e.getMessage());
-        }
-    }
-
 
     public void loadChatHistory(String filename) {
-        try {
-            Path filePath = Paths.get(filename);
-            if (!Files.exists(filePath)) {
-                System.out.println("Arquivo não encontrado: " + filename);
-                return;
-            }
-
-            System.out.println("\n=== Carregando Histórico de: " + filename + " ===");
-            Files.lines(filePath).forEach(System.out::println);
-            System.out.println("========================================\n");
-
-        } catch (IOException e) {
-            System.err.println("Erro ao carregar histórico: " + e.getMessage());
-        }
+        chatHistory.loadChatHistory(filename);
     }
 
     public void listChatHistoryFiles() {
-        try {
-            Path historyFile = Paths.get("history.txt");
-            if (!Files.exists(historyFile)) {
-                System.out.println("Arquivo de histórico não existe.");
-                return;
-            }
-
-            System.out.println("\n=== Arquivo de Histórico ===");
-            String filename = historyFile.getFileName().toString();
-            long size = Files.size(historyFile);
-            String modified = Files.getLastModifiedTime(historyFile).toString().substring(0, 19);
-            System.out.println(filename + " (" + size + " bytes, modificado: " + modified + ")");
-            System.out.println("============================\n");
-
-        } catch (IOException e) {
-            System.err.println("Erro ao listar arquivo: " + e.getMessage());
-        }
+        chatHistory.listChatHistoryFiles();
     }
 
     public void stop() {
