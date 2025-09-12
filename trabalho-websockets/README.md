@@ -42,7 +42,7 @@ Na primeira execução, você será solicitado a:
 ### 4. Execuções subsequentes
 O sistema lembra suas configurações anteriores e as reutiliza automaticamente.
 
-## 💻 Comandos Disponíveis
+## Comandos Disponíveis
 
 | Comando | Descrição |
 |---------|-----------|
