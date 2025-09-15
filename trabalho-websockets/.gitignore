@@ -15,7 +15,7 @@
 
 # virtual machine crash logs
 hs_err_pid*
-
+history.txt
 # IDE files
 .idea/
 *.iws

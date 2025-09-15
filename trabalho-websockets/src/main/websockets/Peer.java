@@ -51,12 +51,30 @@ public class Peer {
             try {
                 Socket clientSocket = serverSocket.accept();
                 PeerConnection connection = new PeerConnection(clientSocket, this);
-                connections.add(connection);
-                threadPool.submit(connection);
                 
-                System.out.println("\nNova conexão aceita de: " + 
-                    clientSocket.getInetAddress().getHostAddress() + ":" + clientSocket.getPort());
-                System.out.print("> ");
+                String remoteAddress = clientSocket.getInetAddress().getHostAddress() + ":" + clientSocket.getPort();
+                boolean connectionExists = false;
+                
+                synchronized (connections) {
+                    for (PeerConnection existingConnection : connections) {
+                        if (existingConnection.getRemoteAddress().equals(remoteAddress)) {
+                            connectionExists = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!connectionExists) {
+                        connections.add(connection);
+                        threadPool.submit(connection);
+                        
+                        System.out.println("\nNova conexão aceita de: " + remoteAddress);
+                        System.out.print("> ");
+                    } else {
+                        System.out.println("\nConexão duplicada ignorada de: " + remoteAddress);
+                        System.out.print("> ");
+                        connection.close();
+                    }
+                }
             } catch (IOException e) {
                 if (running) {
                     System.err.println("Erro ao aceitar conexão: " + e.getMessage());
@@ -76,6 +94,17 @@ public class Peer {
             } else {
                 System.err.println("Peer com nome de usuário '" + host + "' não encontrado.");
                 return false;
+            }
+        }
+
+        // Check if we already have a connection to this address
+        String targetAddress = host + ":" + port;
+        synchronized (connections) {
+            for (PeerConnection existingConnection : connections) {
+                if (existingConnection.getRemoteAddress().equals(targetAddress)) {
+                    System.out.println("Já existe uma conexão com " + targetAddress);
+                    return true;
+                }
             }
         }
 
@@ -166,11 +195,19 @@ public class Peer {
         } else {
             System.out.println("\n=== Conexões Ativas ===");
             int i = 1;
+            Set<String> uniqueConnections = new HashSet<>();
+            
             synchronized (connections) {
                 for (PeerConnection connection : connections) {
-                    System.out.println(i + ". " + connection.getRemoteUsername() + "@" + connection.getRemoteAddress() + 
-                        " (status: " + (connection.isConnected() ? "conectado" : "desconectado") + ")");
-                    i++;
+                    String connectionKey = connection.getRemoteUsername() + "@" + connection.getRemoteAddress();
+                    
+                    // Only show unique connections
+                    if (!uniqueConnections.contains(connectionKey)) {
+                        uniqueConnections.add(connectionKey);
+                        System.out.println(i + ". " + connectionKey + 
+                            " (status: " + (connection.isConnected() ? "conectado" : "desconectado") + ")");
+                        i++;
+                    }
                 }
             }
             System.out.println("=======================\n");
