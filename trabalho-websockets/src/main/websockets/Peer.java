@@ -257,7 +257,16 @@ public class Peer {
                 
                 // Troca de nomes de usuário
                 oos.writeObject(owner.getUsername());
-                this.remoteUsername = (String) ois.readObject();
+                
+                socket.setSoTimeout(5000);
+                try {
+                    this.remoteUsername = (String) ois.readObject();
+                } catch (java.net.SocketTimeoutException e) {
+                    this.remoteUsername = "Peer_" + System.currentTimeMillis() % 10000;
+                    System.out.println("Timeout ao receber username, usando: " + this.remoteUsername);
+                }
+                
+                socket.setSoTimeout(0);
 
             } catch (IOException | ClassNotFoundException e) {
                 System.err.println("Erro ao configurar streams: " + e.getMessage());
