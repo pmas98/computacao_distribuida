@@ -22,7 +22,6 @@ public class Peer {
         this.threadPool = Executors.newCachedThreadPool();
         this.processedMessages = Collections.synchronizedSet(new HashSet<>());
         
-        // Initialize chat history
         this.chatHistory = new ChatHistory(username, port);
     }
 
